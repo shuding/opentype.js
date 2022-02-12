@@ -6,7 +6,7 @@
 /* global DataView, Uint8Array, XMLHttpRequest  */
 
 import 'string.prototype.codepointat';
-import inflate from 'tiny-inflate';
+import {inflateSync} from 'fflate';
 import Font from './font';
 import Glyph from './glyph';
 import { CmapEncoding, GlyphNames, addGlyphNames } from './encoding';
@@ -147,7 +147,7 @@ function uncompressTable(data, tableEntry) {
     if (tableEntry.compression === 'WOFF') {
         const inBuffer = new Uint8Array(data.buffer, tableEntry.offset + 2, tableEntry.compressedLength - 2);
         const outBuffer = new Uint8Array(tableEntry.length);
-        inflate(inBuffer, outBuffer);
+        inflateSync(inBuffer, outBuffer);
         if (outBuffer.byteLength !== tableEntry.length) {
             throw new Error('Decompression error: ' + tableEntry.tag + ' decompressed length doesn\'t match recorded length');
         }

@@ -1,5 +1,5 @@
 /**
- * https://opentype.js.org v1.3.4 | (c) Frederik De Bleser and other contributors | MIT License | Uses tiny-inflate by Devon Govett and string.prototype.codepointat polyfill by Mathias Bynens
+ * https://opentype.js.org v1.3.4 | (c) Frederik De Bleser and other contributors | MIT License | Uses fflate by 101arrowz and string.prototype.codepointat polyfill by Mathias Bynens
  */
 
 (function (global, factory) {
@@ -62,381 +62,374 @@
 		}());
 	}
 
-	var TINF_OK = 0;
-	var TINF_DATA_ERROR = -3;
+	// DEFLATE is a complex format; to read this code, you should probably check the RFC first:
 
-	function Tree() {
-	  this.table = new Uint16Array(16);   /* table of code length counts */
-	  this.trans = new Uint16Array(288);  /* code -> symbol translation table */
-	}
-
-	function Data(source, dest) {
-	  this.source = source;
-	  this.sourceIndex = 0;
-	  this.tag = 0;
-	  this.bitcount = 0;
-	  
-	  this.dest = dest;
-	  this.destLen = 0;
-	  
-	  this.ltree = new Tree();  /* dynamic length/symbol tree */
-	  this.dtree = new Tree();  /* dynamic distance tree */
-	}
-
-	/* --------------------------------------------------- *
-	 * -- uninitialized global data (static structures) -- *
-	 * --------------------------------------------------- */
-
-	var sltree = new Tree();
-	var sdtree = new Tree();
-
-	/* extra bits and base tables for length codes */
-	var length_bits = new Uint8Array(30);
-	var length_base = new Uint16Array(30);
-
-	/* extra bits and base tables for distance codes */
-	var dist_bits = new Uint8Array(30);
-	var dist_base = new Uint16Array(30);
-
-	/* special ordering of code length codes */
-	var clcidx = new Uint8Array([
-	  16, 17, 18, 0, 8, 7, 9, 6,
-	  10, 5, 11, 4, 12, 3, 13, 2,
-	  14, 1, 15
-	]);
-
-	/* used by tinf_decode_trees, avoids allocations every call */
-	var code_tree = new Tree();
-	var lengths = new Uint8Array(288 + 32);
-
-	/* ----------------------- *
-	 * -- utility functions -- *
-	 * ----------------------- */
-
-	/* build extra bits and base tables */
-	function tinf_build_bits_base(bits, base, delta, first) {
-	  var i, sum;
-
-	  /* build bits table */
-	  for (i = 0; i < delta; ++i) { bits[i] = 0; }
-	  for (i = 0; i < 30 - delta; ++i) { bits[i + delta] = i / delta | 0; }
-
-	  /* build base table */
-	  for (sum = first, i = 0; i < 30; ++i) {
-	    base[i] = sum;
-	    sum += 1 << bits[i];
-	  }
-	}
-
-	/* build the fixed huffman trees */
-	function tinf_build_fixed_trees(lt, dt) {
-	  var i;
-
-	  /* build fixed length tree */
-	  for (i = 0; i < 7; ++i) { lt.table[i] = 0; }
-
-	  lt.table[7] = 24;
-	  lt.table[8] = 152;
-	  lt.table[9] = 112;
-
-	  for (i = 0; i < 24; ++i) { lt.trans[i] = 256 + i; }
-	  for (i = 0; i < 144; ++i) { lt.trans[24 + i] = i; }
-	  for (i = 0; i < 8; ++i) { lt.trans[24 + 144 + i] = 280 + i; }
-	  for (i = 0; i < 112; ++i) { lt.trans[24 + 144 + 8 + i] = 144 + i; }
-
-	  /* build fixed distance tree */
-	  for (i = 0; i < 5; ++i) { dt.table[i] = 0; }
-
-	  dt.table[5] = 32;
-
-	  for (i = 0; i < 32; ++i) { dt.trans[i] = i; }
-	}
-
-	/* given an array of code lengths, build a tree */
-	var offs = new Uint16Array(16);
-
-	function tinf_build_tree(t, lengths, off, num) {
-	  var i, sum;
-
-	  /* clear code length count table */
-	  for (i = 0; i < 16; ++i) { t.table[i] = 0; }
-
-	  /* scan symbol lengths, and sum code length counts */
-	  for (i = 0; i < num; ++i) { t.table[lengths[off + i]]++; }
-
-	  t.table[0] = 0;
-
-	  /* compute offset table for distribution sort */
-	  for (sum = 0, i = 0; i < 16; ++i) {
-	    offs[i] = sum;
-	    sum += t.table[i];
-	  }
-
-	  /* create code->symbol translation table (symbols sorted by code) */
-	  for (i = 0; i < num; ++i) {
-	    if (lengths[off + i]) { t.trans[offs[lengths[off + i]]++] = i; }
-	  }
-	}
-
-	/* ---------------------- *
-	 * -- decode functions -- *
-	 * ---------------------- */
-
-	/* get one bit from source stream */
-	function tinf_getbit(d) {
-	  /* check if tag is empty */
-	  if (!d.bitcount--) {
-	    /* load next tag */
-	    d.tag = d.source[d.sourceIndex++];
-	    d.bitcount = 7;
-	  }
-
-	  /* shift bit out of tag */
-	  var bit = d.tag & 1;
-	  d.tag >>>= 1;
-
-	  return bit;
-	}
-
-	/* read a num bit value from a stream and add base */
-	function tinf_read_bits(d, num, base) {
-	  if (!num)
-	    { return base; }
-
-	  while (d.bitcount < 24) {
-	    d.tag |= d.source[d.sourceIndex++] << d.bitcount;
-	    d.bitcount += 8;
-	  }
-
-	  var val = d.tag & (0xffff >>> (16 - num));
-	  d.tag >>>= num;
-	  d.bitcount -= num;
-	  return val + base;
-	}
-
-	/* given a data stream and a tree, decode a symbol */
-	function tinf_decode_symbol(d, t) {
-	  while (d.bitcount < 24) {
-	    d.tag |= d.source[d.sourceIndex++] << d.bitcount;
-	    d.bitcount += 8;
-	  }
-	  
-	  var sum = 0, cur = 0, len = 0;
-	  var tag = d.tag;
-
-	  /* get more bits while code value is above sum */
-	  do {
-	    cur = 2 * cur + (tag & 1);
-	    tag >>>= 1;
-	    ++len;
-
-	    sum += t.table[len];
-	    cur -= t.table[len];
-	  } while (cur >= 0);
-	  
-	  d.tag = tag;
-	  d.bitcount -= len;
-
-	  return t.trans[sum + cur];
-	}
-
-	/* given a data stream, decode dynamic trees from it */
-	function tinf_decode_trees(d, lt, dt) {
-	  var hlit, hdist, hclen;
-	  var i, num, length;
-
-	  /* get 5 bits HLIT (257-286) */
-	  hlit = tinf_read_bits(d, 5, 257);
-
-	  /* get 5 bits HDIST (1-32) */
-	  hdist = tinf_read_bits(d, 5, 1);
-
-	  /* get 4 bits HCLEN (4-19) */
-	  hclen = tinf_read_bits(d, 4, 4);
-
-	  for (i = 0; i < 19; ++i) { lengths[i] = 0; }
-
-	  /* read code lengths for code length alphabet */
-	  for (i = 0; i < hclen; ++i) {
-	    /* get 3 bits code length (0-7) */
-	    var clen = tinf_read_bits(d, 3, 0);
-	    lengths[clcidx[i]] = clen;
-	  }
-
-	  /* build code length tree */
-	  tinf_build_tree(code_tree, lengths, 0, 19);
-
-	  /* decode code lengths for the dynamic trees */
-	  for (num = 0; num < hlit + hdist;) {
-	    var sym = tinf_decode_symbol(d, code_tree);
-
-	    switch (sym) {
-	      case 16:
-	        /* copy previous code length 3-6 times (read 2 bits) */
-	        var prev = lengths[num - 1];
-	        for (length = tinf_read_bits(d, 2, 3); length; --length) {
-	          lengths[num++] = prev;
+	// aliases for shorter compressed code (most minifers don't do this)
+	var u8 = Uint8Array, u16 = Uint16Array, u32 = Uint32Array;
+	// fixed length extra bits
+	var fleb = new u8([0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0, /* unused */ 0, 0, /* impossible */ 0]);
+	// fixed distance extra bits
+	// see fleb note
+	var fdeb = new u8([0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, /* unused */ 0, 0]);
+	// code length index map
+	var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+	// get base, reverse index map from extra bits
+	var freb = function (eb, start) {
+	    var b = new u16(31);
+	    for (var i = 0; i < 31; ++i) {
+	        b[i] = start += 1 << eb[i - 1];
+	    }
+	    // numbers here are at max 18 bits
+	    var r = new u32(b[30]);
+	    for (var i = 1; i < 30; ++i) {
+	        for (var j = b[i]; j < b[i + 1]; ++j) {
+	            r[j] = ((j - b[i]) << 5) | i;
 	        }
-	        break;
-	      case 17:
-	        /* repeat code length 0 for 3-10 times (read 3 bits) */
-	        for (length = tinf_read_bits(d, 3, 3); length; --length) {
-	          lengths[num++] = 0;
+	    }
+	    return [b, r];
+	};
+	var _a = freb(fleb, 2), fl = _a[0], revfl = _a[1];
+	// we can ignore the fact that the other numbers are wrong; they never happen anyway
+	fl[28] = 258, revfl[258] = 28;
+	var _b = freb(fdeb, 0), fd = _b[0];
+	// map of value to reverse (assuming 16 bits)
+	var rev = new u16(32768);
+	for (var i = 0; i < 32768; ++i) {
+	    // reverse table algorithm from SO
+	    var x = ((i & 0xAAAA) >>> 1) | ((i & 0x5555) << 1);
+	    x = ((x & 0xCCCC) >>> 2) | ((x & 0x3333) << 2);
+	    x = ((x & 0xF0F0) >>> 4) | ((x & 0x0F0F) << 4);
+	    rev[i] = (((x & 0xFF00) >>> 8) | ((x & 0x00FF) << 8)) >>> 1;
+	}
+	// create huffman tree from u8 "map": index -> code length for code index
+	// mb (max bits) must be at most 15
+	// TODO: optimize/split up?
+	var hMap = (function (cd, mb, r) {
+	    var s = cd.length;
+	    // index
+	    var i = 0;
+	    // u16 "map": index -> # of codes with bit length = index
+	    var l = new u16(mb);
+	    // length of cd must be 288 (total # of codes)
+	    for (; i < s; ++i) {
+	        if (cd[i])
+	            { ++l[cd[i] - 1]; }
+	    }
+	    // u16 "map": index -> minimum code for bit length = index
+	    var le = new u16(mb);
+	    for (i = 0; i < mb; ++i) {
+	        le[i] = (le[i - 1] + l[i - 1]) << 1;
+	    }
+	    var co;
+	    if (r) {
+	        // u16 "map": index -> number of actual bits, symbol for code
+	        co = new u16(1 << mb);
+	        // bits to remove for reverser
+	        var rvb = 15 - mb;
+	        for (i = 0; i < s; ++i) {
+	            // ignore 0 lengths
+	            if (cd[i]) {
+	                // num encoding both symbol and bits read
+	                var sv = (i << 4) | cd[i];
+	                // free bits
+	                var r_1 = mb - cd[i];
+	                // start value
+	                var v = le[cd[i] - 1]++ << r_1;
+	                // m is end value
+	                for (var m = v | ((1 << r_1) - 1); v <= m; ++v) {
+	                    // every 16 bit value starting with the code yields the same result
+	                    co[rev[v] >>> rvb] = sv;
+	                }
+	            }
 	        }
-	        break;
-	      case 18:
-	        /* repeat code length 0 for 11-138 times (read 7 bits) */
-	        for (length = tinf_read_bits(d, 7, 11); length; --length) {
-	          lengths[num++] = 0;
+	    }
+	    else {
+	        co = new u16(s);
+	        for (i = 0; i < s; ++i) {
+	            if (cd[i]) {
+	                co[i] = rev[le[cd[i] - 1]++] >>> (15 - cd[i]);
+	            }
 	        }
-	        break;
-	      default:
-	        /* values 0-15 represent the actual code lengths */
-	        lengths[num++] = sym;
-	        break;
 	    }
-	  }
-
-	  /* build dynamic trees */
-	  tinf_build_tree(lt, lengths, 0, hlit);
-	  tinf_build_tree(dt, lengths, hlit, hdist);
-	}
-
-	/* ----------------------------- *
-	 * -- block inflate functions -- *
-	 * ----------------------------- */
-
-	/* given a stream and two trees, inflate a block of data */
-	function tinf_inflate_block_data(d, lt, dt) {
-	  while (1) {
-	    var sym = tinf_decode_symbol(d, lt);
-
-	    /* check for end of block */
-	    if (sym === 256) {
-	      return TINF_OK;
+	    return co;
+	});
+	// fixed length tree
+	var flt = new u8(288);
+	for (var i = 0; i < 144; ++i)
+	    { flt[i] = 8; }
+	for (var i = 144; i < 256; ++i)
+	    { flt[i] = 9; }
+	for (var i = 256; i < 280; ++i)
+	    { flt[i] = 7; }
+	for (var i = 280; i < 288; ++i)
+	    { flt[i] = 8; }
+	// fixed distance tree
+	var fdt = new u8(32);
+	for (var i = 0; i < 32; ++i)
+	    { fdt[i] = 5; }
+	// fixed length map
+	var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+	// fixed distance map
+	var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+	// find max of array
+	var max = function (a) {
+	    var m = a[0];
+	    for (var i = 1; i < a.length; ++i) {
+	        if (a[i] > m)
+	            { m = a[i]; }
 	    }
-
-	    if (sym < 256) {
-	      d.dest[d.destLen++] = sym;
-	    } else {
-	      var length, dist, offs;
-	      var i;
-
-	      sym -= 257;
-
-	      /* possibly get more bits from length code */
-	      length = tinf_read_bits(d, length_bits[sym], length_base[sym]);
-
-	      dist = tinf_decode_symbol(d, dt);
-
-	      /* possibly get more bits from distance code */
-	      offs = d.destLen - tinf_read_bits(d, dist_bits[dist], dist_base[dist]);
-
-	      /* copy match */
-	      for (i = offs; i < offs + length; ++i) {
-	        d.dest[d.destLen++] = d.dest[i];
-	      }
-	    }
-	  }
+	    return m;
+	};
+	// read d, starting at bit p and mask with m
+	var bits = function (d, p, m) {
+	    var o = (p / 8) | 0;
+	    return ((d[o] | (d[o + 1] << 8)) >> (p & 7)) & m;
+	};
+	// read d, starting at bit p continuing for at least 16 bits
+	var bits16 = function (d, p) {
+	    var o = (p / 8) | 0;
+	    return ((d[o] | (d[o + 1] << 8) | (d[o + 2] << 16)) >> (p & 7));
+	};
+	// get end of byte
+	var shft = function (p) { return ((p + 7) / 8) | 0; };
+	// typed array slice - allows garbage collector to free original reference,
+	// while being more compatible than .slice
+	var slc = function (v, s, e) {
+	    if (s == null || s < 0)
+	        { s = 0; }
+	    if (e == null || e > v.length)
+	        { e = v.length; }
+	    // can't use .constructor in case user-supplied
+	    var n = new (v.BYTES_PER_ELEMENT == 2 ? u16 : v.BYTES_PER_ELEMENT == 4 ? u32 : u8)(e - s);
+	    n.set(v.subarray(s, e));
+	    return n;
+	};
+	// error codes
+	var ec = [
+	    'unexpected EOF',
+	    'invalid block type',
+	    'invalid length/literal',
+	    'invalid distance',
+	    'stream finished',
+	    'no stream handler',
+	    ,
+	    'no callback',
+	    'invalid UTF-8 data',
+	    'extra field too long',
+	    'date not in range 1980-2099',
+	    'filename too long',
+	    'stream finishing',
+	    'invalid zip data'
+	    // determined by unknown compression method
+	];
+	var err = function (ind, msg, nt) {
+	    var e = new Error(msg || ec[ind]);
+	    e.code = ind;
+	    if (Error.captureStackTrace)
+	        { Error.captureStackTrace(e, err); }
+	    if (!nt)
+	        { throw e; }
+	    return e;
+	};
+	// expands raw DEFLATE data
+	var inflt = function (dat, buf, st) {
+	    // source length
+	    var sl = dat.length;
+	    if (!sl || (st && st.f && !st.l))
+	        { return buf || new u8(0); }
+	    // have to estimate size
+	    var noBuf = !buf || st;
+	    // no state
+	    var noSt = !st || st.i;
+	    if (!st)
+	        { st = {}; }
+	    // Assumes roughly 33% compression ratio average
+	    if (!buf)
+	        { buf = new u8(sl * 3); }
+	    // ensure buffer can fit at least l elements
+	    var cbuf = function (l) {
+	        var bl = buf.length;
+	        // need to increase size to fit
+	        if (l > bl) {
+	            // Double or set to necessary, whichever is greater
+	            var nbuf = new u8(Math.max(bl * 2, l));
+	            nbuf.set(buf);
+	            buf = nbuf;
+	        }
+	    };
+	    //  last chunk         bitpos           bytes
+	    var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+	    // total bits
+	    var tbts = sl * 8;
+	    do {
+	        if (!lm) {
+	            // BFINAL - this is only 1 when last chunk is next
+	            final = bits(dat, pos, 1);
+	            // type: 0 = no compression, 1 = fixed huffman, 2 = dynamic huffman
+	            var type = bits(dat, pos + 1, 3);
+	            pos += 3;
+	            if (!type) {
+	                // go to end of byte boundary
+	                var s = shft(pos) + 4, l = dat[s - 4] | (dat[s - 3] << 8), t = s + l;
+	                if (t > sl) {
+	                    if (noSt)
+	                        { err(0); }
+	                    break;
+	                }
+	                // ensure size
+	                if (noBuf)
+	                    { cbuf(bt + l); }
+	                // Copy over uncompressed data
+	                buf.set(dat.subarray(s, t), bt);
+	                // Get new bitpos, update byte count
+	                st.b = bt += l, st.p = pos = t * 8, st.f = final;
+	                continue;
+	            }
+	            else if (type == 1)
+	                { lm = flrm, dm = fdrm, lbt = 9, dbt = 5; }
+	            else if (type == 2) {
+	                //  literal                            lengths
+	                var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+	                var tl = hLit + bits(dat, pos + 5, 31) + 1;
+	                pos += 14;
+	                // length+distance tree
+	                var ldt = new u8(tl);
+	                // code length tree
+	                var clt = new u8(19);
+	                for (var i = 0; i < hcLen; ++i) {
+	                    // use index map to get real code
+	                    clt[clim[i]] = bits(dat, pos + i * 3, 7);
+	                }
+	                pos += hcLen * 3;
+	                // code lengths bits
+	                var clb = max(clt), clbmsk = (1 << clb) - 1;
+	                // code lengths map
+	                var clm = hMap(clt, clb, 1);
+	                for (var i = 0; i < tl;) {
+	                    var r = clm[bits(dat, pos, clbmsk)];
+	                    // bits read
+	                    pos += r & 15;
+	                    // symbol
+	                    var s = r >>> 4;
+	                    // code length to copy
+	                    if (s < 16) {
+	                        ldt[i++] = s;
+	                    }
+	                    else {
+	                        //  copy   count
+	                        var c = 0, n = 0;
+	                        if (s == 16)
+	                            { n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i - 1]; }
+	                        else if (s == 17)
+	                            { n = 3 + bits(dat, pos, 7), pos += 3; }
+	                        else if (s == 18)
+	                            { n = 11 + bits(dat, pos, 127), pos += 7; }
+	                        while (n--)
+	                            { ldt[i++] = c; }
+	                    }
+	                }
+	                //    length tree                 distance tree
+	                var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+	                // max length bits
+	                lbt = max(lt);
+	                // max dist bits
+	                dbt = max(dt);
+	                lm = hMap(lt, lbt, 1);
+	                dm = hMap(dt, dbt, 1);
+	            }
+	            else
+	                { err(1); }
+	            if (pos > tbts) {
+	                if (noSt)
+	                    { err(0); }
+	                break;
+	            }
+	        }
+	        // Make sure the buffer can hold this + the largest possible addition
+	        // Maximum chunk size (practically, theoretically infinite) is 2^17;
+	        if (noBuf)
+	            { cbuf(bt + 131072); }
+	        var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+	        var lpos = pos;
+	        for (;; lpos = pos) {
+	            // bits read, code
+	            var c = lm[bits16(dat, pos) & lms], sym = c >>> 4;
+	            pos += c & 15;
+	            if (pos > tbts) {
+	                if (noSt)
+	                    { err(0); }
+	                break;
+	            }
+	            if (!c)
+	                { err(2); }
+	            if (sym < 256)
+	                { buf[bt++] = sym; }
+	            else if (sym == 256) {
+	                lpos = pos, lm = null;
+	                break;
+	            }
+	            else {
+	                var add = sym - 254;
+	                // no extra bits needed if less
+	                if (sym > 264) {
+	                    // index
+	                    var i = sym - 257, b = fleb[i];
+	                    add = bits(dat, pos, (1 << b) - 1) + fl[i];
+	                    pos += b;
+	                }
+	                // dist
+	                var d = dm[bits16(dat, pos) & dms], dsym = d >>> 4;
+	                if (!d)
+	                    { err(3); }
+	                pos += d & 15;
+	                var dt = fd[dsym];
+	                if (dsym > 3) {
+	                    var b = fdeb[dsym];
+	                    dt += bits16(dat, pos) & ((1 << b) - 1), pos += b;
+	                }
+	                if (pos > tbts) {
+	                    if (noSt)
+	                        { err(0); }
+	                    break;
+	                }
+	                if (noBuf)
+	                    { cbuf(bt + 131072); }
+	                var end = bt + add;
+	                for (; bt < end; bt += 4) {
+	                    buf[bt] = buf[bt - dt];
+	                    buf[bt + 1] = buf[bt + 1 - dt];
+	                    buf[bt + 2] = buf[bt + 2 - dt];
+	                    buf[bt + 3] = buf[bt + 3 - dt];
+	                }
+	                bt = end;
+	            }
+	        }
+	        st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+	        if (lm)
+	            { final = 1, st.m = lbt, st.d = dm, st.n = dbt; }
+	    } while (!final);
+	    return bt == buf.length ? buf : slc(buf, 0, bt);
+	};
+	// empty
+	var et = /*#__PURE__*/ new u8(0);
+	/**
+	 * Expands DEFLATE data with no wrapper
+	 * @param data The data to decompress
+	 * @param out Where to write the data. Saves memory if you know the decompressed size and provide an output buffer of that length.
+	 * @returns The decompressed version of the data
+	 */
+	function inflateSync(data, out) {
+	    return inflt(data, out);
 	}
-
-	/* inflate an uncompressed block of data */
-	function tinf_inflate_uncompressed_block(d) {
-	  var length, invlength;
-	  var i;
-	  
-	  /* unread from bitbuffer */
-	  while (d.bitcount > 8) {
-	    d.sourceIndex--;
-	    d.bitcount -= 8;
-	  }
-
-	  /* get length */
-	  length = d.source[d.sourceIndex + 1];
-	  length = 256 * length + d.source[d.sourceIndex];
-
-	  /* get one's complement of length */
-	  invlength = d.source[d.sourceIndex + 3];
-	  invlength = 256 * invlength + d.source[d.sourceIndex + 2];
-
-	  /* check length */
-	  if (length !== (~invlength & 0x0000ffff))
-	    { return TINF_DATA_ERROR; }
-
-	  d.sourceIndex += 4;
-
-	  /* copy block */
-	  for (i = length; i; --i)
-	    { d.dest[d.destLen++] = d.source[d.sourceIndex++]; }
-
-	  /* make sure we start next block on a byte boundary */
-	  d.bitcount = 0;
-
-	  return TINF_OK;
+	// text decoder
+	var td = typeof TextDecoder != 'undefined' && /*#__PURE__*/ new TextDecoder();
+	// text decoder stream
+	var tds = 0;
+	try {
+	    td.decode(et, { stream: true });
+	    tds = 1;
 	}
-
-	/* inflate stream from source to dest */
-	function tinf_uncompress(source, dest) {
-	  var d = new Data(source, dest);
-	  var bfinal, btype, res;
-
-	  do {
-	    /* read final block flag */
-	    bfinal = tinf_getbit(d);
-
-	    /* read block type (2 bits) */
-	    btype = tinf_read_bits(d, 2, 0);
-
-	    /* decompress block */
-	    switch (btype) {
-	      case 0:
-	        /* decompress uncompressed block */
-	        res = tinf_inflate_uncompressed_block(d);
-	        break;
-	      case 1:
-	        /* decompress block with fixed huffman trees */
-	        res = tinf_inflate_block_data(d, sltree, sdtree);
-	        break;
-	      case 2:
-	        /* decompress block with dynamic huffman trees */
-	        tinf_decode_trees(d, d.ltree, d.dtree);
-	        res = tinf_inflate_block_data(d, d.ltree, d.dtree);
-	        break;
-	      default:
-	        res = TINF_DATA_ERROR;
-	    }
-
-	    if (res !== TINF_OK)
-	      { throw new Error('Data error'); }
-
-	  } while (!bfinal);
-
-	  if (d.destLen < d.dest.length) {
-	    if (typeof d.dest.slice === 'function')
-	      { return d.dest.slice(0, d.destLen); }
-	    else
-	      { return d.dest.subarray(0, d.destLen); }
-	  }
-	  
-	  return d.dest;
-	}
-
-	/* -------------------- *
-	 * -- initialization -- *
-	 * -------------------- */
-
-	/* build fixed huffman trees */
-	tinf_build_fixed_trees(sltree, sdtree);
-
-	/* build extra bits and base tables */
-	tinf_build_bits_base(length_bits, length_base, 4, 3);
-	tinf_build_bits_base(dist_bits, dist_base, 2, 1);
-
-	/* fix a special case */
-	length_bits[28] = 0;
-	length_base[28] = 258;
-
-	var tinyInflate = tinf_uncompress;
+	catch (e) { }
 
 	// The Bounding Box object
 
@@ -14168,7 +14161,7 @@
 	    if (tableEntry.compression === 'WOFF') {
 	        var inBuffer = new Uint8Array(data.buffer, tableEntry.offset + 2, tableEntry.compressedLength - 2);
 	        var outBuffer = new Uint8Array(tableEntry.length);
-	        tinyInflate(inBuffer, outBuffer);
+	        inflateSync(inBuffer, outBuffer);
 	        if (outBuffer.byteLength !== tableEntry.length) {
 	            throw new Error('Decompression error: ' + tableEntry.tag + ' decompressed length doesn\'t match recorded length');
 	        }
