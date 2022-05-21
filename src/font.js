@@ -6,7 +6,7 @@ import { DefaultEncoding } from './encoding';
 import glyphset from './glyphset';
 import Position from './position';
 import Substitution from './substitution';
-import { isBrowser, checkArgument, arrayBufferToNodeBuffer } from './util';
+import { checkArgument } from './util';
 import HintingTrueType from './hintingtt';
 import Bidi from './bidi';
 
@@ -52,40 +52,69 @@ function Font(options) {
 
     if (!options.empty) {
         // Check that we've provided the minimum set of names.
-        checkArgument(options.familyName, 'When creating a new Font object, familyName is required.');
-        checkArgument(options.styleName, 'When creating a new Font object, styleName is required.');
-        checkArgument(options.unitsPerEm, 'When creating a new Font object, unitsPerEm is required.');
-        checkArgument(options.ascender, 'When creating a new Font object, ascender is required.');
-        checkArgument(options.descender <= 0, 'When creating a new Font object, negative descender value is required.');
+        checkArgument(
+            options.familyName,
+            'When creating a new Font object, familyName is required.'
+        );
+        checkArgument(
+            options.styleName,
+            'When creating a new Font object, styleName is required.'
+        );
+        checkArgument(
+            options.unitsPerEm,
+            'When creating a new Font object, unitsPerEm is required.'
+        );
+        checkArgument(
+            options.ascender,
+            'When creating a new Font object, ascender is required.'
+        );
+        checkArgument(
+            options.descender <= 0,
+            'When creating a new Font object, negative descender value is required.'
+        );
 
         // OS X will complain if the names are empty, so we put a single space everywhere by default.
         this.names = {
-            fontFamily: {en: options.familyName || ' '},
-            fontSubfamily: {en: options.styleName || ' '},
-            fullName: {en: options.fullName || options.familyName + ' ' + options.styleName},
+            fontFamily: { en: options.familyName || ' ' },
+            fontSubfamily: { en: options.styleName || ' ' },
+            fullName: {
+                en:
+                    options.fullName ||
+                    options.familyName + ' ' + options.styleName,
+            },
             // postScriptName may not contain any whitespace
-            postScriptName: {en: options.postScriptName || (options.familyName + options.styleName).replace(/\s/g, '')},
-            designer: {en: options.designer || ' '},
-            designerURL: {en: options.designerURL || ' '},
-            manufacturer: {en: options.manufacturer || ' '},
-            manufacturerURL: {en: options.manufacturerURL || ' '},
-            license: {en: options.license || ' '},
-            licenseURL: {en: options.licenseURL || ' '},
-            version: {en: options.version || 'Version 0.1'},
-            description: {en: options.description || ' '},
-            copyright: {en: options.copyright || ' '},
-            trademark: {en: options.trademark || ' '}
+            postScriptName: {
+                en:
+                    options.postScriptName ||
+                    (options.familyName + options.styleName).replace(/\s/g, ''),
+            },
+            designer: { en: options.designer || ' ' },
+            designerURL: { en: options.designerURL || ' ' },
+            manufacturer: { en: options.manufacturer || ' ' },
+            manufacturerURL: { en: options.manufacturerURL || ' ' },
+            license: { en: options.license || ' ' },
+            licenseURL: { en: options.licenseURL || ' ' },
+            version: { en: options.version || 'Version 0.1' },
+            description: { en: options.description || ' ' },
+            copyright: { en: options.copyright || ' ' },
+            trademark: { en: options.trademark || ' ' },
         };
         this.unitsPerEm = options.unitsPerEm || 1000;
         this.ascender = options.ascender;
         this.descender = options.descender;
         this.createdTimestamp = options.createdTimestamp;
         this.tables = Object.assign(options.tables, {
-            os2: Object.assign({
-                usWeightClass: options.weightClass || this.usWeightClasses.MEDIUM,
-                usWidthClass: options.widthClass || this.usWidthClasses.MEDIUM,
-                fsSelection: options.fsSelection || this.fsSelectionValues.REGULAR,
-            }, options.tables.os2)
+            os2: Object.assign(
+                {
+                    usWeightClass:
+                        options.weightClass || this.usWeightClasses.MEDIUM,
+                    usWidthClass:
+                        options.widthClass || this.usWidthClasses.MEDIUM,
+                    fsSelection:
+                        options.fsSelection || this.fsSelectionValues.REGULAR,
+                },
+                options.tables.os2
+            ),
         });
     }
 
@@ -101,12 +130,12 @@ function Font(options) {
     this._hmtxTableData = {};
 
     Object.defineProperty(this, 'hinting', {
-        get: function() {
+        get: function () {
             if (this._hinting) return this._hinting;
             if (this.outlinesFormat === 'truetype') {
                 return (this._hinting = new HintingTrueType(this));
             }
-        }
+        },
     });
 }
 
@@ -115,7 +144,7 @@ function Font(options) {
  * @param  {string}
  * @return {Boolean}
  */
-Font.prototype.hasChar = function(c) {
+Font.prototype.hasChar = function (c) {
     return this.encoding.charToGlyphIndex(c) !== null;
 };
 
@@ -126,7 +155,7 @@ Font.prototype.hasChar = function(c) {
  * @param  {string}
  * @return {Number}
  */
-Font.prototype.charToGlyphIndex = function(s) {
+Font.prototype.charToGlyphIndex = function (s) {
     return this.encoding.charToGlyphIndex(s);
 };
 
@@ -137,7 +166,7 @@ Font.prototype.charToGlyphIndex = function(s) {
  * @param  {string}
  * @return {opentype.Glyph}
  */
-Font.prototype.charToGlyph = function(c) {
+Font.prototype.charToGlyph = function (c) {
     const glyphIndex = this.charToGlyphIndex(c);
     let glyph = this.glyphs.get(glyphIndex);
     if (!glyph) {
@@ -154,11 +183,11 @@ Font.prototype.charToGlyph = function(c) {
  */
 Font.prototype.updateFeatures = function (options) {
     // TODO: update all features options not only 'latn'.
-    return this.defaultRenderOptions.features.map(feature => {
+    return this.defaultRenderOptions.features.map((feature) => {
         if (feature.script === 'latn') {
             return {
                 script: 'latn',
-                tags: feature.tags.filter(tag => options[tag])
+                tags: feature.tags.filter((tag) => options[tag]),
             };
         } else {
             return feature;
@@ -175,18 +204,17 @@ Font.prototype.updateFeatures = function (options) {
  * @param  {GlyphRenderOptions} [options]
  * @return {opentype.Glyph[]}
  */
-Font.prototype.stringToGlyphs = function(s, options) {
-
+Font.prototype.stringToGlyphs = function (s, options) {
     const bidi = new Bidi();
 
     // Create and register 'glyphIndex' state modifier
-    const charToGlyphIndexMod = token => this.charToGlyphIndex(token.char);
+    const charToGlyphIndexMod = (token) => this.charToGlyphIndex(token.char);
     bidi.registerModifier('glyphIndex', null, charToGlyphIndexMod);
 
     // roll-back to default features
     let features = options ?
-    this.updateFeatures(options.features) :
-    this.defaultRenderOptions.features;
+        this.updateFeatures(options.features) :
+        this.defaultRenderOptions.features;
 
     bidi.applyFeatures(this, features);
 
@@ -207,7 +235,7 @@ Font.prototype.stringToGlyphs = function(s, options) {
  * @param  {string}
  * @return {Number}
  */
-Font.prototype.nameToGlyphIndex = function(name) {
+Font.prototype.nameToGlyphIndex = function (name) {
     return this.glyphNames.nameToGlyphIndex(name);
 };
 
@@ -215,7 +243,7 @@ Font.prototype.nameToGlyphIndex = function(name) {
  * @param  {string}
  * @return {opentype.Glyph}
  */
-Font.prototype.nameToGlyph = function(name) {
+Font.prototype.nameToGlyph = function (name) {
     const glyphIndex = this.nameToGlyphIndex(name);
     let glyph = this.glyphs.get(glyphIndex);
     if (!glyph) {
@@ -230,7 +258,7 @@ Font.prototype.nameToGlyph = function(name) {
  * @param  {Number}
  * @return {String}
  */
-Font.prototype.glyphIndexToName = function(gid) {
+Font.prototype.glyphIndexToName = function (gid) {
     if (!this.glyphNames.glyphIndexToName) {
         return '';
     }
@@ -249,12 +277,16 @@ Font.prototype.glyphIndexToName = function(gid) {
  * @param  {opentype.Glyph} rightGlyph
  * @return {Number}
  */
-Font.prototype.getKerningValue = function(leftGlyph, rightGlyph) {
+Font.prototype.getKerningValue = function (leftGlyph, rightGlyph) {
     leftGlyph = leftGlyph.index || leftGlyph;
     rightGlyph = rightGlyph.index || rightGlyph;
     const gposKerning = this.position.defaultKerningTables;
     if (gposKerning) {
-        return this.position.getKerningValue(gposKerning, leftGlyph, rightGlyph);
+        return this.position.getKerningValue(
+            gposKerning,
+            leftGlyph,
+            rightGlyph
+        );
     }
     // "kern" table
     return this.kerningPairs[leftGlyph + ',' + rightGlyph] || 0;
@@ -279,8 +311,8 @@ Font.prototype.defaultRenderOptions = {
          * and shouldn't be turned off when rendering arabic text.
          */
         { script: 'arab', tags: ['init', 'medi', 'fina', 'rlig'] },
-        { script: 'latn', tags: ['liga', 'rlig'] }
-    ]
+        { script: 'latn', tags: ['liga', 'rlig'] },
+    ],
 };
 
 /**
@@ -293,17 +325,27 @@ Font.prototype.defaultRenderOptions = {
  * @param  {GlyphRenderOptions=} options
  * @param  {Function} callback
  */
-Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) {
+Font.prototype.forEachGlyph = function (
+    text,
+    x,
+    y,
+    fontSize,
+    options,
+    callback
+) {
     x = x !== undefined ? x : 0;
     y = y !== undefined ? y : 0;
     fontSize = fontSize !== undefined ? fontSize : 72;
     options = Object.assign({}, this.defaultRenderOptions, options);
-    const fontScale = 1 / this.unitsPerEm * fontSize;
+    const fontScale = (1 / this.unitsPerEm) * fontSize;
     const glyphs = this.stringToGlyphs(text, options);
     let kerningLookups;
     if (options.kerning) {
         const script = options.script || this.position.getDefaultScriptName();
-        kerningLookups = this.position.getKerningTables(script, options.language);
+        kerningLookups = this.position.getKerningTables(
+            script,
+            options.language
+        );
     }
     for (let i = 0; i < glyphs.length; i += 1) {
         const glyph = glyphs[i];
@@ -316,8 +358,12 @@ Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) 
             // We should apply position adjustment lookups in a more generic way.
             // Here we only use the xAdvance value.
             const kerningValue = kerningLookups ?
-                  this.position.getKerningValue(kerningLookups, glyph.index, glyphs[i + 1].index) :
-                  this.getKerningValue(glyph, glyphs[i + 1]);
+                this.position.getKerningValue(
+                    kerningLookups,
+                    glyph.index,
+                    glyphs[i + 1].index
+                ) :
+                this.getKerningValue(glyph, glyphs[i + 1]);
             x += kerningValue * fontScale;
         }
 
@@ -339,12 +385,19 @@ Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) 
  * @param  {GlyphRenderOptions=} options
  * @return {opentype.Path}
  */
-Font.prototype.getPath = function(text, x, y, fontSize, options) {
+Font.prototype.getPath = function (text, x, y, fontSize, options) {
     const fullPath = new Path();
-    this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
-        const glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
-        fullPath.extend(glyphPath);
-    });
+    this.forEachGlyph(
+        text,
+        x,
+        y,
+        fontSize,
+        options,
+        function (glyph, gX, gY, gFontSize) {
+            const glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
+            fullPath.extend(glyphPath);
+        }
+    );
     return fullPath;
 };
 
@@ -357,12 +410,19 @@ Font.prototype.getPath = function(text, x, y, fontSize, options) {
  * @param  {GlyphRenderOptions=} options
  * @return {opentype.Path[]}
  */
-Font.prototype.getPaths = function(text, x, y, fontSize, options) {
+Font.prototype.getPaths = function (text, x, y, fontSize, options) {
     const glyphPaths = [];
-    this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
-        const glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
-        glyphPaths.push(glyphPath);
-    });
+    this.forEachGlyph(
+        text,
+        x,
+        y,
+        fontSize,
+        options,
+        function (glyph, gX, gY, gFontSize) {
+            const glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
+            glyphPaths.push(glyphPath);
+        }
+    );
 
     return glyphPaths;
 };
@@ -382,8 +442,8 @@ Font.prototype.getPaths = function(text, x, y, fontSize, options) {
  * @param  {GlyphRenderOptions=} options
  * @return advance width
  */
-Font.prototype.getAdvanceWidth = function(text, fontSize, options) {
-    return this.forEachGlyph(text, 0, 0, fontSize, options, function() {});
+Font.prototype.getAdvanceWidth = function (text, fontSize, options) {
+    return this.forEachGlyph(text, 0, 0, fontSize, options, function () {});
 };
 
 /**
@@ -395,7 +455,7 @@ Font.prototype.getAdvanceWidth = function(text, fontSize, options) {
  * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
  * @param  {GlyphRenderOptions=} options
  */
-Font.prototype.draw = function(ctx, text, x, y, fontSize, options) {
+Font.prototype.draw = function (ctx, text, x, y, fontSize, options) {
     this.getPath(text, x, y, fontSize, options).draw(ctx);
 };
 
@@ -409,10 +469,17 @@ Font.prototype.draw = function(ctx, text, x, y, fontSize, options) {
  * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
  * @param {GlyphRenderOptions=} options
  */
-Font.prototype.drawPoints = function(ctx, text, x, y, fontSize, options) {
-    this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
-        glyph.drawPoints(ctx, gX, gY, gFontSize);
-    });
+Font.prototype.drawPoints = function (ctx, text, x, y, fontSize, options) {
+    this.forEachGlyph(
+        text,
+        x,
+        y,
+        fontSize,
+        options,
+        function (glyph, gX, gY, gFontSize) {
+            glyph.drawPoints(ctx, gX, gY, gFontSize);
+        }
+    );
 };
 
 /**
@@ -427,17 +494,24 @@ Font.prototype.drawPoints = function(ctx, text, x, y, fontSize, options) {
  * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
  * @param {GlyphRenderOptions=} options
  */
-Font.prototype.drawMetrics = function(ctx, text, x, y, fontSize, options) {
-    this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
-        glyph.drawMetrics(ctx, gX, gY, gFontSize);
-    });
+Font.prototype.drawMetrics = function (ctx, text, x, y, fontSize, options) {
+    this.forEachGlyph(
+        text,
+        x,
+        y,
+        fontSize,
+        options,
+        function (glyph, gX, gY, gFontSize) {
+            glyph.drawMetrics(ctx, gX, gY, gFontSize);
+        }
+    );
 };
 
 /**
  * @param  {string}
  * @return {string}
  */
-Font.prototype.getEnglishName = function(name) {
+Font.prototype.getEnglishName = function (name) {
     const translations = this.names[name];
     if (translations) {
         return translations.en;
@@ -447,7 +521,7 @@ Font.prototype.getEnglishName = function(name) {
 /**
  * Validate
  */
-Font.prototype.validate = function() {
+Font.prototype.validate = function () {
     const warnings = [];
     const _this = this;
 
@@ -459,8 +533,10 @@ Font.prototype.validate = function() {
 
     function assertNamePresent(name) {
         const englishName = _this.getEnglishName(name);
-        assert(englishName && englishName.trim().length > 0,
-               'No English ' + name + ' specified.');
+        assert(
+            englishName && englishName.trim().length > 0,
+            'No English ' + name + ' specified.'
+        );
     }
 
     // Identification information
@@ -479,21 +555,23 @@ Font.prototype.validate = function() {
  * This structure contains all the necessary tables and metadata to create a binary OTF file.
  * @return {opentype.Table}
  */
-Font.prototype.toTables = function() {
+Font.prototype.toTables = function () {
     return sfnt.fontToTable(this);
 };
 /**
  * @deprecated Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.
  */
-Font.prototype.toBuffer = function() {
-    console.warn('Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.');
+Font.prototype.toBuffer = function () {
+    console.warn(
+        'Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.'
+    );
     return this.toArrayBuffer();
 };
 /**
  * Converts a `opentype.Font` into an `ArrayBuffer`
  * @return {ArrayBuffer}
  */
-Font.prototype.toArrayBuffer = function() {
+Font.prototype.toArrayBuffer = function () {
     const sfntTable = this.toTables();
     const bytes = sfntTable.encode();
     const buffer = new ArrayBuffer(bytes.length);
@@ -506,51 +584,19 @@ Font.prototype.toArrayBuffer = function() {
 };
 
 /**
- * Initiate a download of the OpenType font.
- */
-Font.prototype.download = function(fileName) {
-    const familyName = this.getEnglishName('fontFamily');
-    const styleName = this.getEnglishName('fontSubfamily');
-    fileName = fileName || familyName.replace(/\s/g, '') + '-' + styleName + '.otf';
-    const arrayBuffer = this.toArrayBuffer();
-
-    if (isBrowser()) {
-        window.URL = window.URL || window.webkitURL;
-
-        if (window.URL) {
-            const dataView = new DataView(arrayBuffer);
-            const blob = new Blob([dataView], {type: 'font/opentype'});
-
-            let link = document.createElement('a');
-            link.href = window.URL.createObjectURL(blob);
-            link.download = fileName;
-
-            let event = document.createEvent('MouseEvents');
-            event.initEvent('click', true, false);
-            link.dispatchEvent(event);
-        } else {
-            console.warn('Font file could not be downloaded. Try using a different browser.');
-        }
-    } else {
-        const fs = require('fs');
-        const buffer = arrayBufferToNodeBuffer(arrayBuffer);
-        fs.writeFileSync(fileName, buffer);
-    }
-};
-/**
  * @private
  */
 Font.prototype.fsSelectionValues = {
-    ITALIC:              0x001, //1
-    UNDERSCORE:          0x002, //2
-    NEGATIVE:            0x004, //4
-    OUTLINED:            0x008, //8
-    STRIKEOUT:           0x010, //16
-    BOLD:                0x020, //32
-    REGULAR:             0x040, //64
-    USER_TYPO_METRICS:   0x080, //128
-    WWS:                 0x100, //256
-    OBLIQUE:             0x200  //512
+    ITALIC: 0x001, //1
+    UNDERSCORE: 0x002, //2
+    NEGATIVE: 0x004, //4
+    OUTLINED: 0x008, //8
+    STRIKEOUT: 0x010, //16
+    BOLD: 0x020, //32
+    REGULAR: 0x040, //64
+    USER_TYPO_METRICS: 0x080, //128
+    WWS: 0x100, //256
+    OBLIQUE: 0x200, //512
 };
 
 /**
@@ -565,7 +611,7 @@ Font.prototype.usWidthClasses = {
     SEMI_EXPANDED: 6,
     EXPANDED: 7,
     EXTRA_EXPANDED: 8,
-    ULTRA_EXPANDED: 9
+    ULTRA_EXPANDED: 9,
 };
 
 /**
@@ -580,7 +626,7 @@ Font.prototype.usWeightClasses = {
     SEMI_BOLD: 600,
     BOLD: 700,
     EXTRA_BOLD: 800,
-    BLACK:    900
+    BLACK: 900,
 };
 
 export default Font;
