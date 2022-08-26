@@ -5,16 +5,16 @@ import Glyph from './glyph';
 // Define a property on the glyph that depends on the path being loaded.
 function defineDependentProperty(glyph, externalName, internalName) {
     Object.defineProperty(glyph, externalName, {
-        get: function() {
+        get: function () {
             // Request the path property to make sure the path is loaded.
             glyph.path; // jshint ignore:line
             return glyph[internalName];
         },
-        set: function(newValue) {
+        set: function (newValue) {
             glyph[internalName] = newValue;
         },
         enumerable: true,
-        configurable: true
+        configurable: true,
     });
 }
 
@@ -45,7 +45,7 @@ function GlyphSet(font, glyphs) {
  * @param  {number} index
  * @return {opentype.Glyph}
  */
-GlyphSet.prototype.get = function(index) {
+GlyphSet.prototype.get = function (index) {
     // this.glyphs[index] is 'undefined' when low memory mode is on. glyph is pushed on request only.
     if (this.glyphs[index] === undefined) {
         this.font._push(index);
@@ -61,18 +61,10 @@ GlyphSet.prototype.get = function(index) {
                 glyph.addUnicode(unicodeObj.unicodes[j]);
         }
 
-        if (this.font.cffEncoding) {
-            if (this.font.isCIDFont) {
-                glyph.name = 'gid' + index;
-            } else {
-                glyph.name = this.font.cffEncoding.charset[index];
-            }
-        } else if (this.font.glyphNames.names) {
-            glyph.name = this.font.glyphNames.glyphIndexToName(index);
-        }
-
-        this.glyphs[index].advanceWidth = this.font._hmtxTableData[index].advanceWidth;
-        this.glyphs[index].leftSideBearing = this.font._hmtxTableData[index].leftSideBearing;
+        this.glyphs[index].advanceWidth =
+            this.font._hmtxTableData[index].advanceWidth;
+        this.glyphs[index].leftSideBearing =
+            this.font._hmtxTableData[index].leftSideBearing;
     } else {
         if (typeof this.glyphs[index] === 'function') {
             this.glyphs[index] = this.glyphs[index]();
@@ -86,7 +78,7 @@ GlyphSet.prototype.get = function(index) {
  * @param  {number} index
  * @param  {Object}
  */
-GlyphSet.prototype.push = function(index, loader) {
+GlyphSet.prototype.push = function (index, loader) {
     this.glyphs[index] = loader;
     this.length++;
 };
@@ -98,7 +90,7 @@ GlyphSet.prototype.push = function(index, loader) {
  * @return {opentype.Glyph}
  */
 function glyphLoader(font, index) {
-    return new Glyph({index: index, font: font});
+    return new Glyph({ index: index, font: font });
 }
 
 /**
@@ -115,10 +107,10 @@ function glyphLoader(font, index) {
  * @return {opentype.Glyph}
  */
 function ttfGlyphLoader(font, index, parseGlyph, data, position, buildPath) {
-    return function() {
-        const glyph = new Glyph({index: index, font: font});
+    return function () {
+        const glyph = new Glyph({ index: index, font: font });
 
-        glyph.path = function() {
+        glyph.path = function () {
             parseGlyph(glyph, data, position);
             const path = buildPath(font.glyphs, glyph);
             path.unitsPerEm = font.unitsPerEm;
@@ -142,10 +134,10 @@ function ttfGlyphLoader(font, index, parseGlyph, data, position, buildPath) {
  * @return {opentype.Glyph}
  */
 function cffGlyphLoader(font, index, parseCFFCharstring, charstring) {
-    return function() {
-        const glyph = new Glyph({index: index, font: font});
+    return function () {
+        const glyph = new Glyph({ index: index, font: font });
 
-        glyph.path = function() {
+        glyph.path = function () {
             const path = parseCFFCharstring(font, glyph, charstring);
             path.unitsPerEm = font.unitsPerEm;
             return path;

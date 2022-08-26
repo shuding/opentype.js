@@ -3,7 +3,6 @@
 // https://www.microsoft.com/typography/OTSPEC/maxp.htm
 
 import parse from '../parse';
-import table from '../table';
 
 // Parse the maximum profile `maxp` table.
 function parseMaxpTable(data, start) {
@@ -30,11 +29,4 @@ function parseMaxpTable(data, start) {
     return maxp;
 }
 
-function makeMaxpTable(numGlyphs) {
-    return new table.Table('maxp', [
-        {name: 'version', type: 'FIXED', value: 0x00005000},
-        {name: 'numGlyphs', type: 'USHORT', value: numGlyphs}
-    ]);
-}
-
-export default { parse: parseMaxpTable, make: makeMaxpTable };
+export default { parse: parseMaxpTable };

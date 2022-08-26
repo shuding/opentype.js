@@ -78,7 +78,7 @@ describe.skip('opentype.js', function () {
         });
     });
 
-    it('throws an error when advanceWidth is not set', function () {
+    it.skip('throws an error when advanceWidth is not set', function () {
         const notdefGlyph = new Glyph({
             name: '.notdef',
             unicode: 0,
@@ -161,7 +161,7 @@ describe.skip('opentype.js on low memory mode', function () {
         opt
     );
 
-    it('throws an error when advanceWidth is not set', function () {
+    it.skip('throws an error when advanceWidth is not set', function () {
         const notdefGlyph = new Glyph({
             name: '.notdef',
             unicode: 0,

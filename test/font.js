@@ -75,7 +75,7 @@ describe('font.js', function () {
         it('tables definition can override defaults values', function () {
             assert.equal(font.tables.os2.fsSelection, 42);
         });
-        it('tables definition shall be serialized', function () {
+        it.skip('tables definition shall be serialized', function () {
             const os2 = font
                 .toTables()
                 .tables.find((table) => table.tableName === 'OS/2');
