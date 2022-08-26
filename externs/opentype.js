@@ -52,24 +52,6 @@ opentype.Font.prototype.charToGlyph = function (c) {};
 opentype.Font.prototype.stringToGlyphs = function (s, options) {};
 
 /**
- * @param  {string}
- * @return {Number}
- */
-opentype.Font.prototype.nameToGlyphIndex = function (name) {};
-
-/**
- * @param  {string}
- * @return {opentype.Glyph}
- */
-opentype.Font.prototype.nameToGlyph = function (name) {};
-
-/**
- * @param  {Number}
- * @return {String}
- */
-opentype.Font.prototype.glyphIndexToName = function (gid) {};
-
-/**
  * Retrieve the value of the kerning pair between the left glyph (or its index)
  * and the right glyph (or its index). If no kerning pair is found, return 0.
  * The kerning value gets added to the advance width when calculating the spacing
@@ -120,90 +102,6 @@ opentype.Font.prototype.getPath = function (text, x, y, fontSize, options) {};
  */
 opentype.Font.prototype.getPaths = function (text, x, y, fontSize, options) {};
 
-/**
- * Draw the text on the given drawing context.
- * @param  {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param  {string} text - The text to create.
- * @param  {number} [x=0] - Horizontal position of the beginning of the text.
- * @param  {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param  {Object=} options
- */
-opentype.Font.prototype.draw = function (ctx, text, x, y, fontSize, options) {};
-
-/**
- * Draw the points of all glyphs in the text.
- * On-curve points will be drawn in blue, off-curve points will be drawn in red.
- * @param {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param {string} text - The text to create.
- * @param {number} [x=0] - Horizontal position of the beginning of the text.
- * @param {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param {Object=} options
- */
-opentype.Font.prototype.drawPoints = function (
-    ctx,
-    text,
-    x,
-    y,
-    fontSize,
-    options
-) {};
-
-/**
- * Draw lines indicating important font measurements for all glyphs in the text.
- * Black lines indicate the origin of the coordinate system (point 0,0).
- * Blue lines indicate the glyph bounding box.
- * Green line indicates the advance width of the glyph.
- * @param {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param {string} text - The text to create.
- * @param {number} [x=0] - Horizontal position of the beginning of the text.
- * @param {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param {Object=} options
- */
-opentype.Font.prototype.drawMetrics = function (
-    ctx,
-    text,
-    x,
-    y,
-    fontSize,
-    options
-) {};
-
-/**
- * @param  {string}
- * @return {string}
- */
-opentype.Font.prototype.getEnglishName = function (name) {};
-
-/**
- * Validate
- */
-opentype.Font.prototype.validate = function () {};
-
-/**
- * Convert the font object to a SFNT data structure.
- * This structure contains all the necessary tables and metadata to create a binary OTF file.
- * @return {opentype.Table}
- */
-opentype.Font.prototype.toTables = function () {};
-/**
- * @deprecated Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.
- */
-opentype.Font.prototype.toBuffer = function () {};
-/**
- * Converts a `opentype.Font` into an `ArrayBuffer`
- * @return {ArrayBuffer}
- */
-opentype.Font.prototype.toArrayBuffer = function () {};
-
-/**
- * Initiate a download of the OpenType font.
- * @param {string=} fileName
- */
-opentype.Font.prototype.download = function (fileName) {};
-
 // A Glyph is an individual mark that often corresponds to a character.
 // Some glyphs, such as ligatures, are a combination of many characters.
 // Glyphs are the basic building blocks of a font.
@@ -219,12 +117,6 @@ opentype.Glyph = function (options) {};
  * @param {number}
  */
 opentype.Glyph.prototype.addUnicode = function (unicode) {};
-
-/**
- * Calculate the minimum bounding box for this glyph.
- * @return {opentype.BoundingBox}
- */
-opentype.Glyph.prototype.getBoundingBox = function () {};
 
 /**
  * Convert the glyph to a Path we can draw on a drawing context.
@@ -249,38 +141,6 @@ opentype.Glyph.prototype.getContours = function () {};
  * @return {Object}
  */
 opentype.Glyph.prototype.getMetrics = function () {};
-
-/**
- * Draw the glyph on the given context.
- * @param  {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param  {number} [x=0] - Horizontal position of the beginning of the text.
- * @param  {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param  {Object=} options - xScale, yScale to strech the glyph.
- */
-opentype.Glyph.prototype.draw = function (ctx, x, y, fontSize, options) {};
-
-/**
- * Draw the points of the glyph.
- * On-curve points will be drawn in blue, off-curve points will be drawn in red.
- * @param  {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param  {number} [x=0] - Horizontal position of the beginning of the text.
- * @param  {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- */
-opentype.Glyph.prototype.drawPoints = function (ctx, x, y, fontSize) {};
-
-/**
- * Draw lines indicating important font measurements.
- * Black lines indicate the origin of the coordinate system (point 0,0).
- * Blue lines indicate the glyph bounding box.
- * Green line indicates the advance width of the glyph.
- * @param  {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param  {number} [x=0] - Horizontal position of the beginning of the text.
- * @param  {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- */
-opentype.Glyph.prototype.drawMetrics = function (ctx, x, y, fontSize) {};
 
 /**
  * A bézier path containing a set of path commands similar to a SVG path.
@@ -358,34 +218,10 @@ opentype.Path.prototype.closePath = function () {};
 opentype.Path.prototype.extend = function (pathOrCommands) {};
 
 /**
- * Calculate the bounding box of the path.
- * @returns {opentype.BoundingBox}
- */
-opentype.Path.prototype.getBoundingBox = function () {};
-
-/**
- * @param {CanvasRenderingContext2D} ctx - A 2D drawing context.
- */
-opentype.Path.prototype.draw = function (ctx) {};
-
-/**
  * @param  {number} [decimalPlaces=2] - The amount of decimal places for floating-point values
  * @return {string}
  */
 opentype.Path.prototype.toPathData = function (decimalPlaces) {};
-
-/**
- * @param  {number} [decimalPlaces=2] - The amount of decimal places for floating-point values
- * @return {string}
- */
-opentype.Path.prototype.toSVG = function (decimalPlaces) {};
-
-/**
- * Convert the path to a DOM element.
- * @param  {number} [decimalPlaces=2] - The amount of decimal places for floating-point values
- * @return {SVGPathElement}
- */
-opentype.Path.prototype.toDOMElement = function (decimalPlaces) {};
 
 /**
  * @constructor
@@ -414,13 +250,6 @@ opentype.Layout.prototype.binSearch = function (arr, value) {};
  * @return {Object} The GSUB or GPOS table.
  */
 opentype.Layout.prototype.getTable = function (create) {};
-
-/**
- * Returns all scripts in the substitution table.
- * @instance
- * @return {Array}
- */
-opentype.Layout.prototype.getScriptNames = function () {};
 
 /**
  * Returns all LangSysRecords in the given script.

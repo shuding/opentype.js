@@ -18,9 +18,13 @@ function Substitution(font) {
 // Check if 2 arrays of primitives are equal.
 function arraysEqual(ar1, ar2) {
     const n = ar1.length;
-    if (n !== ar2.length) { return false; }
+    if (n !== ar2.length) {
+        return false;
+    }
     for (let i = 0; i < n; i++) {
-        if (ar1[i] !== ar2[i]) { return false; }
+        if (ar1[i] !== ar2[i]) {
+            return false;
+        }
     }
     return true;
 }
@@ -47,19 +51,25 @@ Substitution.prototype = Layout.prototype;
  * Create a default GSUB table.
  * @return {Object} gsub - The GSUB table.
  */
-Substitution.prototype.createDefaultTable = function() {
+Substitution.prototype.createDefaultTable = function () {
     // Generate a default empty GSUB table with just a DFLT script and dflt lang sys.
     return {
         version: 1,
-        scripts: [{
-            tag: 'DFLT',
-            script: {
-                defaultLangSys: { reserved: 0, reqFeatureIndex: 0xffff, featureIndexes: [] },
-                langSysRecords: []
-            }
-        }],
+        scripts: [
+            {
+                tag: 'DFLT',
+                script: {
+                    defaultLangSys: {
+                        reserved: 0,
+                        reqFeatureIndex: 0xffff,
+                        featureIndexes: [],
+                    },
+                    langSysRecords: [],
+                },
+            },
+        ],
         features: [],
-        lookups: []
+        lookups: [],
     };
 };
 
@@ -70,7 +80,7 @@ Substitution.prototype.createDefaultTable = function() {
  * @param {string} feature - 4-character feature name ('aalt', 'salt', 'ss01'...)
  * @return {Array} substitutions - The list of substitutions.
  */
-Substitution.prototype.getSingle = function(feature, script, language) {
+Substitution.prototype.getSingle = function (feature, script, language) {
     const substitutions = [];
     const lookupTables = this.getLookupTables(script, language, feature, 1);
     for (let idx = 0; idx < lookupTables.length; idx++) {
@@ -103,7 +113,7 @@ Substitution.prototype.getSingle = function(feature, script, language) {
  * @param {string} feature - 4-character feature name ('ccmp', 'stch')
  * @return {Array} substitutions - The list of substitutions.
  */
-Substitution.prototype.getMultiple = function(feature, script, language) {
+Substitution.prototype.getMultiple = function (feature, script, language) {
     const substitutions = [];
     const lookupTables = this.getLookupTables(script, language, feature, 2);
     for (let idx = 0; idx < lookupTables.length; idx++) {
@@ -130,7 +140,7 @@ Substitution.prototype.getMultiple = function(feature, script, language) {
  * @param {string} feature - 4-character feature name ('aalt', 'salt'...)
  * @return {Array} alternates - The list of alternates
  */
-Substitution.prototype.getAlternates = function(feature, script, language) {
+Substitution.prototype.getAlternates = function (feature, script, language) {
     const alternates = [];
     const lookupTables = this.getLookupTables(script, language, feature, 3);
     for (let idx = 0; idx < lookupTables.length; idx++) {
@@ -155,7 +165,7 @@ Substitution.prototype.getAlternates = function(feature, script, language) {
  * @param {string} [language='dflt']
  * @return {Array} ligatures - The list of ligatures.
  */
-Substitution.prototype.getLigatures = function(feature, script, language) {
+Substitution.prototype.getLigatures = function (feature, script, language) {
     const ligatures = [];
     const lookupTables = this.getLookupTables(script, language, feature, 4);
     for (let idx = 0; idx < lookupTables.length; idx++) {
@@ -171,7 +181,7 @@ Substitution.prototype.getLigatures = function(feature, script, language) {
                     const lig = ligSet[k];
                     ligatures.push({
                         sub: [startGlyph].concat(lig.components),
-                        by: lig.ligGlyph
+                        by: lig.ligGlyph,
                     });
                 }
             }
@@ -188,14 +198,30 @@ Substitution.prototype.getLigatures = function(feature, script, language) {
  * @param {string} [script='DFLT']
  * @param {string} [language='dflt']
  */
-Substitution.prototype.addSingle = function(feature, substitution, script, language) {
-    const lookupTable = this.getLookupTables(script, language, feature, 1, true)[0];
-    const subtable = getSubstFormat(lookupTable, 2, {                // lookup type 1 subtable, format 2, coverage format 1
+Substitution.prototype.addSingle = function (
+    feature,
+    substitution,
+    script,
+    language
+) {
+    const lookupTable = this.getLookupTables(
+        script,
+        language,
+        feature,
+        1,
+        true
+    )[0];
+    const subtable = getSubstFormat(lookupTable, 2, {
+        // lookup type 1 subtable, format 2, coverage format 1
         substFormat: 2,
-        coverage: {format: 1, glyphs: []},
-        substitute: []
+        coverage: { format: 1, glyphs: [] },
+        substitute: [],
     });
-    check.assert(subtable.coverage.format === 1, 'Single: unable to modify coverage table format ' + subtable.coverage.format);
+    check.assert(
+        subtable.coverage.format === 1,
+        'Single: unable to modify coverage table format ' +
+            subtable.coverage.format
+    );
     const coverageGlyph = substitution.sub;
     let pos = this.binSearch(subtable.coverage.glyphs, coverageGlyph);
     if (pos < 0) {
@@ -213,15 +239,34 @@ Substitution.prototype.addSingle = function(feature, substitution, script, langu
  * @param {string} [script='DFLT']
  * @param {string} [language='dflt']
  */
-Substitution.prototype.addMultiple = function(feature, substitution, script, language) {
-    check.assert(substitution.by instanceof Array && substitution.by.length > 1, 'Multiple: "by" must be an array of two or more ids');
-    const lookupTable = this.getLookupTables(script, language, feature, 2, true)[0];
-    const subtable = getSubstFormat(lookupTable, 1, {                // lookup type 2 subtable, format 1, coverage format 1
+Substitution.prototype.addMultiple = function (
+    feature,
+    substitution,
+    script,
+    language
+) {
+    check.assert(
+        substitution.by instanceof Array && substitution.by.length > 1,
+        'Multiple: "by" must be an array of two or more ids'
+    );
+    const lookupTable = this.getLookupTables(
+        script,
+        language,
+        feature,
+        2,
+        true
+    )[0];
+    const subtable = getSubstFormat(lookupTable, 1, {
+        // lookup type 2 subtable, format 1, coverage format 1
         substFormat: 1,
-        coverage: {format: 1, glyphs: []},
-        sequences: []
+        coverage: { format: 1, glyphs: [] },
+        sequences: [],
     });
-    check.assert(subtable.coverage.format === 1, 'Multiple: unable to modify coverage table format ' + subtable.coverage.format);
+    check.assert(
+        subtable.coverage.format === 1,
+        'Multiple: unable to modify coverage table format ' +
+            subtable.coverage.format
+    );
     const coverageGlyph = substitution.sub;
     let pos = this.binSearch(subtable.coverage.glyphs, coverageGlyph);
     if (pos < 0) {
@@ -239,14 +284,30 @@ Substitution.prototype.addMultiple = function(feature, substitution, script, lan
  * @param {string} [script='DFLT']
  * @param {string} [language='dflt']
  */
-Substitution.prototype.addAlternate = function(feature, substitution, script, language) {
-    const lookupTable = this.getLookupTables(script, language, feature, 3, true)[0];
-    const subtable = getSubstFormat(lookupTable, 1, {                // lookup type 3 subtable, format 1, coverage format 1
+Substitution.prototype.addAlternate = function (
+    feature,
+    substitution,
+    script,
+    language
+) {
+    const lookupTable = this.getLookupTables(
+        script,
+        language,
+        feature,
+        3,
+        true
+    )[0];
+    const subtable = getSubstFormat(lookupTable, 1, {
+        // lookup type 3 subtable, format 1, coverage format 1
         substFormat: 1,
-        coverage: {format: 1, glyphs: []},
-        alternateSets: []
+        coverage: { format: 1, glyphs: [] },
+        alternateSets: [],
     });
-    check.assert(subtable.coverage.format === 1, 'Alternate: unable to modify coverage table format ' + subtable.coverage.format);
+    check.assert(
+        subtable.coverage.format === 1,
+        'Alternate: unable to modify coverage table format ' +
+            subtable.coverage.format
+    );
     const coverageGlyph = substitution.sub;
     let pos = this.binSearch(subtable.coverage.glyphs, coverageGlyph);
     if (pos < 0) {
@@ -265,23 +326,39 @@ Substitution.prototype.addAlternate = function(feature, substitution, script, la
  * @param {string} [script='DFLT']
  * @param {string} [language='dflt']
  */
-Substitution.prototype.addLigature = function(feature, ligature, script, language) {
-    const lookupTable = this.getLookupTables(script, language, feature, 4, true)[0];
+Substitution.prototype.addLigature = function (
+    feature,
+    ligature,
+    script,
+    language
+) {
+    const lookupTable = this.getLookupTables(
+        script,
+        language,
+        feature,
+        4,
+        true
+    )[0];
     let subtable = lookupTable.subtables[0];
     if (!subtable) {
-        subtable = {                // lookup type 4 subtable, format 1, coverage format 1
+        subtable = {
+            // lookup type 4 subtable, format 1, coverage format 1
             substFormat: 1,
             coverage: { format: 1, glyphs: [] },
-            ligatureSets: []
+            ligatureSets: [],
         };
         lookupTable.subtables[0] = subtable;
     }
-    check.assert(subtable.coverage.format === 1, 'Ligature: unable to modify coverage table format ' + subtable.coverage.format);
+    check.assert(
+        subtable.coverage.format === 1,
+        'Ligature: unable to modify coverage table format ' +
+            subtable.coverage.format
+    );
     const coverageGlyph = ligature.sub[0];
     const ligComponents = ligature.sub.slice(1);
     const ligatureTable = {
         ligGlyph: ligature.by,
-        components: ligComponents
+        components: ligComponents,
     };
     let pos = this.binSearch(subtable.coverage.glyphs, coverageGlyph);
     if (pos >= 0) {
@@ -310,7 +387,7 @@ Substitution.prototype.addLigature = function(feature, ligature, script, languag
  * @param {string} [language='dflt']
  * @return {Array} substitutions - The list of substitutions.
  */
-Substitution.prototype.getFeature = function(feature, script, language) {
+Substitution.prototype.getFeature = function (feature, script, language) {
     if (/ss\d\d/.test(feature)) {
         // ss01 - ss20
         return this.getSingle(feature, script, language);
@@ -318,15 +395,17 @@ Substitution.prototype.getFeature = function(feature, script, language) {
     switch (feature) {
         case 'aalt':
         case 'salt':
-            return this.getSingle(feature, script, language)
-                    .concat(this.getAlternates(feature, script, language));
+            return this.getSingle(feature, script, language).concat(
+                this.getAlternates(feature, script, language)
+            );
         case 'dlig':
         case 'liga':
         case 'rlig':
             return this.getLigatures(feature, script, language);
         case 'ccmp':
-            return this.getMultiple(feature, script, language)
-                .concat(this.getLigatures(feature, script, language));
+            return this.getMultiple(feature, script, language).concat(
+                this.getLigatures(feature, script, language)
+            );
         case 'stch':
             return this.getMultiple(feature, script, language);
     }
@@ -340,7 +419,7 @@ Substitution.prototype.getFeature = function(feature, script, language) {
  * @param {string} [script='DFLT']
  * @param {string} [language='dflt']
  */
-Substitution.prototype.add = function(feature, sub, script, language) {
+Substitution.prototype.add = function (feature, sub, script, language) {
     if (/ss\d\d/.test(feature)) {
         // ss01 - ss20
         return this.addSingle(feature, sub, script, language);

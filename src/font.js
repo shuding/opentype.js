@@ -1,7 +1,6 @@
 // The Font object
 
 import Path from './path';
-import sfnt from './tables/sfnt';
 import { DefaultEncoding } from './encoding';
 import glyphset from './glyphset';
 import Position from './position';
@@ -73,32 +72,6 @@ function Font(options) {
             'When creating a new Font object, negative descender value is required.'
         );
 
-        // OS X will complain if the names are empty, so we put a single space everywhere by default.
-        this.names = {
-            fontFamily: { en: options.familyName || ' ' },
-            fontSubfamily: { en: options.styleName || ' ' },
-            fullName: {
-                en:
-                    options.fullName ||
-                    options.familyName + ' ' + options.styleName,
-            },
-            // postScriptName may not contain any whitespace
-            postScriptName: {
-                en:
-                    options.postScriptName ||
-                    (options.familyName + options.styleName).replace(/\s/g, ''),
-            },
-            designer: { en: options.designer || ' ' },
-            designerURL: { en: options.designerURL || ' ' },
-            manufacturer: { en: options.manufacturer || ' ' },
-            manufacturerURL: { en: options.manufacturerURL || ' ' },
-            license: { en: options.license || ' ' },
-            licenseURL: { en: options.licenseURL || ' ' },
-            version: { en: options.version || 'Version 0.1' },
-            description: { en: options.description || ' ' },
-            copyright: { en: options.copyright || ' ' },
-            trademark: { en: options.trademark || ' ' },
-        };
         this.unitsPerEm = options.unitsPerEm || 1000;
         this.ascender = options.ascender;
         this.descender = options.descender;
@@ -212,9 +185,9 @@ Font.prototype.stringToGlyphs = function (s, options) {
     bidi.registerModifier('glyphIndex', null, charToGlyphIndexMod);
 
     // roll-back to default features
-    let features = options ?
-        this.updateFeatures(options.features) :
-        this.defaultRenderOptions.features;
+    let features = options
+        ? this.updateFeatures(options.features)
+        : this.defaultRenderOptions.features;
 
     bidi.applyFeatures(this, features);
 
@@ -229,41 +202,6 @@ Font.prototype.stringToGlyphs = function (s, options) {
         glyphs[i] = this.glyphs.get(indexes[i]) || notdef;
     }
     return glyphs;
-};
-
-/**
- * @param  {string}
- * @return {Number}
- */
-Font.prototype.nameToGlyphIndex = function (name) {
-    return this.glyphNames.nameToGlyphIndex(name);
-};
-
-/**
- * @param  {string}
- * @return {opentype.Glyph}
- */
-Font.prototype.nameToGlyph = function (name) {
-    const glyphIndex = this.nameToGlyphIndex(name);
-    let glyph = this.glyphs.get(glyphIndex);
-    if (!glyph) {
-        // .notdef
-        glyph = this.glyphs.get(0);
-    }
-
-    return glyph;
-};
-
-/**
- * @param  {Number}
- * @return {String}
- */
-Font.prototype.glyphIndexToName = function (gid) {
-    if (!this.glyphNames.glyphIndexToName) {
-        return '';
-    }
-
-    return this.glyphNames.glyphIndexToName(gid);
 };
 
 /**
@@ -357,13 +295,13 @@ Font.prototype.forEachGlyph = function (
         if (options.kerning && i < glyphs.length - 1) {
             // We should apply position adjustment lookups in a more generic way.
             // Here we only use the xAdvance value.
-            const kerningValue = kerningLookups ?
-                this.position.getKerningValue(
-                    kerningLookups,
-                    glyph.index,
-                    glyphs[i + 1].index
-                ) :
-                this.getKerningValue(glyph, glyphs[i + 1]);
+            const kerningValue = kerningLookups
+                ? this.position.getKerningValue(
+                      kerningLookups,
+                      glyph.index,
+                      glyphs[i + 1].index
+                  )
+                : this.getKerningValue(glyph, glyphs[i + 1]);
             x += kerningValue * fontScale;
         }
 
@@ -444,143 +382,6 @@ Font.prototype.getPaths = function (text, x, y, fontSize, options) {
  */
 Font.prototype.getAdvanceWidth = function (text, fontSize, options) {
     return this.forEachGlyph(text, 0, 0, fontSize, options, function () {});
-};
-
-/**
- * Draw the text on the given drawing context.
- * @param  {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param  {string} text - The text to create.
- * @param  {number} [x=0] - Horizontal position of the beginning of the text.
- * @param  {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param  {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param  {GlyphRenderOptions=} options
- */
-Font.prototype.draw = function (ctx, text, x, y, fontSize, options) {
-    this.getPath(text, x, y, fontSize, options).draw(ctx);
-};
-
-/**
- * Draw the points of all glyphs in the text.
- * On-curve points will be drawn in blue, off-curve points will be drawn in red.
- * @param {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param {string} text - The text to create.
- * @param {number} [x=0] - Horizontal position of the beginning of the text.
- * @param {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param {GlyphRenderOptions=} options
- */
-Font.prototype.drawPoints = function (ctx, text, x, y, fontSize, options) {
-    this.forEachGlyph(
-        text,
-        x,
-        y,
-        fontSize,
-        options,
-        function (glyph, gX, gY, gFontSize) {
-            glyph.drawPoints(ctx, gX, gY, gFontSize);
-        }
-    );
-};
-
-/**
- * Draw lines indicating important font measurements for all glyphs in the text.
- * Black lines indicate the origin of the coordinate system (point 0,0).
- * Blue lines indicate the glyph bounding box.
- * Green line indicates the advance width of the glyph.
- * @param {CanvasRenderingContext2D} ctx - A 2D drawing context, like Canvas.
- * @param {string} text - The text to create.
- * @param {number} [x=0] - Horizontal position of the beginning of the text.
- * @param {number} [y=0] - Vertical position of the *baseline* of the text.
- * @param {number} [fontSize=72] - Font size in pixels. We scale the glyph units by `1 / unitsPerEm * fontSize`.
- * @param {GlyphRenderOptions=} options
- */
-Font.prototype.drawMetrics = function (ctx, text, x, y, fontSize, options) {
-    this.forEachGlyph(
-        text,
-        x,
-        y,
-        fontSize,
-        options,
-        function (glyph, gX, gY, gFontSize) {
-            glyph.drawMetrics(ctx, gX, gY, gFontSize);
-        }
-    );
-};
-
-/**
- * @param  {string}
- * @return {string}
- */
-Font.prototype.getEnglishName = function (name) {
-    const translations = this.names[name];
-    if (translations) {
-        return translations.en;
-    }
-};
-
-/**
- * Validate
- */
-Font.prototype.validate = function () {
-    const warnings = [];
-    const _this = this;
-
-    function assert(predicate, message) {
-        if (!predicate) {
-            warnings.push(message);
-        }
-    }
-
-    function assertNamePresent(name) {
-        const englishName = _this.getEnglishName(name);
-        assert(
-            englishName && englishName.trim().length > 0,
-            'No English ' + name + ' specified.'
-        );
-    }
-
-    // Identification information
-    assertNamePresent('fontFamily');
-    assertNamePresent('weightName');
-    assertNamePresent('manufacturer');
-    assertNamePresent('copyright');
-    assertNamePresent('version');
-
-    // Dimension information
-    assert(this.unitsPerEm > 0, 'No unitsPerEm specified.');
-};
-
-/**
- * Convert the font object to a SFNT data structure.
- * This structure contains all the necessary tables and metadata to create a binary OTF file.
- * @return {opentype.Table}
- */
-Font.prototype.toTables = function () {
-    return sfnt.fontToTable(this);
-};
-/**
- * @deprecated Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.
- */
-Font.prototype.toBuffer = function () {
-    console.warn(
-        'Font.toBuffer is deprecated. Use Font.toArrayBuffer instead.'
-    );
-    return this.toArrayBuffer();
-};
-/**
- * Converts a `opentype.Font` into an `ArrayBuffer`
- * @return {ArrayBuffer}
- */
-Font.prototype.toArrayBuffer = function () {
-    const sfntTable = this.toTables();
-    const bytes = sfntTable.encode();
-    const buffer = new ArrayBuffer(bytes.length);
-    const intArray = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i++) {
-        intArray[i] = bytes[i];
-    }
-
-    return buffer;
 };
 
 /**

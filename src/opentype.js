@@ -5,13 +5,11 @@
 
 /* global DataView, Uint8Array  */
 
-import 'string.prototype.codepointat';
 import { inflateSync } from 'fflate';
 import Font from './font';
 import Glyph from './glyph';
-import { CmapEncoding, GlyphNames, addGlyphNames } from './encoding';
+import { CmapEncoding, addGlyphNames } from './encoding';
 import parse from './parse';
-import BoundingBox from './bbox';
 import Path from './path';
 import cmap from './tables/cmap';
 import cff from './tables/cff';
@@ -27,7 +25,6 @@ import kern from './tables/kern';
 import ltag from './tables/ltag';
 import loca from './tables/loca';
 import maxp from './tables/maxp';
-import _name from './tables/name';
 import os2 from './tables/os2';
 import post from './tables/post';
 import meta from './tables/meta';
@@ -148,7 +145,6 @@ function parseBuffer(buffer, opt) {
     opt = opt === undefined || opt === null ? {} : opt;
 
     let indexToLocFormat;
-    let ltagTable;
 
     // Since the constructor can also be called to create new fonts from scratch, we indicate this
     // should be an empty font that we'll fill with our own data.
@@ -198,7 +194,6 @@ function parseBuffer(buffer, opt) {
     let hmtxTableEntry;
     let kernTableEntry;
     let locaTableEntry;
-    let nameTableEntry;
     let metaTableEntry;
     let p;
 
@@ -249,9 +244,6 @@ function parseBuffer(buffer, opt) {
                 font.tables.maxp = maxp.parse(table.data, table.offset);
                 font.numGlyphs = font.tables.maxp.numGlyphs;
                 break;
-            case 'name':
-                nameTableEntry = tableEntry;
-                break;
             case 'OS/2':
                 table = uncompressTable(data, tableEntry);
                 font.tables.os2 = os2.parse(table.data, table.offset);
@@ -259,7 +251,6 @@ function parseBuffer(buffer, opt) {
             case 'post':
                 table = uncompressTable(data, tableEntry);
                 font.tables.post = post.parse(table.data, table.offset);
-                font.glyphNames = new GlyphNames(font.tables.post);
                 break;
             case 'prep':
                 table = uncompressTable(data, tableEntry);
@@ -292,10 +283,6 @@ function parseBuffer(buffer, opt) {
                 break;
         }
     }
-
-    const nameTable = uncompressTable(data, nameTableEntry);
-    font.tables.name = _name.parse(nameTable.data, nameTable.offset, ltagTable);
-    font.names = font.tables.name;
 
     if (glyfTableEntry && locaTableEntry) {
         const shortVersion = indexToLocFormat === 0;
@@ -381,7 +368,6 @@ export {
     Font,
     Glyph,
     Path,
-    BoundingBox,
     parse as _parse,
     parseBuffer as parse,
     load,

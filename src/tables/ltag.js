@@ -6,31 +6,6 @@
 
 import check from '../check';
 import parse from '../parse';
-import table from '../table';
-
-function makeLtagTable(tags) {
-    const result = new table.Table('ltag', [
-        {name: 'version', type: 'ULONG', value: 1},
-        {name: 'flags', type: 'ULONG', value: 0},
-        {name: 'numTags', type: 'ULONG', value: tags.length}
-    ]);
-
-    let stringPool = '';
-    const stringPoolOffset = 12 + tags.length * 4;
-    for (let i = 0; i < tags.length; ++i) {
-        let pos = stringPool.indexOf(tags[i]);
-        if (pos < 0) {
-            pos = stringPool.length;
-            stringPool += tags[i];
-        }
-
-        result.fields.push({name: 'offset ' + i, type: 'USHORT', value: stringPoolOffset + pos});
-        result.fields.push({name: 'length ' + i, type: 'USHORT', value: tags[i].length});
-    }
-
-    result.fields.push({name: 'stringPool', type: 'CHARARRAY', value: stringPool});
-    return result;
-}
 
 function parseLtagTable(data, start) {
     const p = new parse.Parser(data, start);
@@ -55,4 +30,4 @@ function parseLtagTable(data, start) {
     return tags;
 }
 
-export default { make: makeLtagTable, parse: parseLtagTable };
+export default { parse: parseLtagTable };
