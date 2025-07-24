@@ -1,5 +1,5 @@
 /**
- * https://opentype.js.org v1.3.5 | (c) Frederik De Bleser and other contributors | MIT License | Uses fflate by 101arrowz and string.prototype.codepointat polyfill by Mathias Bynens
+ * https://opentype.js.org v1.4.0-beta.0 | (c) Frederik De Bleser and other contributors | MIT License | Uses fflate by 101arrowz
  */
 
 (function (global, factory) {
